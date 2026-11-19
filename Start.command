@@ -9,9 +9,9 @@ write_profile() {
         return 1
     fi
 
-    local peer direction opposite peer_slot config_path index
-    local -a peers directions opposites slots hotkeys
-    peers=() directions=() opposites=() slots=() hotkeys=(F12 F10)
+    local peer direction opposite config_path index
+    local -a peers directions opposites hotkeys
+    peers=() directions=() opposites=() hotkeys=(F12 F10)
     local LC_ALL=C
     local label='[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9])?'
 
@@ -35,13 +35,13 @@ write_profile() {
         fi
 
         case "$direction" in
-            left) opposite=right; peer_slot=7 ;;
-            right) opposite=left; peer_slot=9 ;;
-            up) opposite=down; peer_slot=3 ;;
-            down) opposite=up; peer_slot=13 ;;
+            left) opposite=right ;;
+            right) opposite=left ;;
+            up) opposite=down ;;
+            down) opposite=up ;;
             *) printf '%s\n' '방향은 left, right, up, down 중 하나를 입력하세요.' >&2; return 1 ;;
         esac
-        peers+=("$peer") directions+=("$direction") opposites+=("$opposite") slots+=("$peer_slot")
+        peers+=("$peer") directions+=("$direction") opposites+=("$opposite")
     done
 
     mkdir -p "$folder"
@@ -86,10 +86,8 @@ EOF
         for peer in "${peers[@]}"; do
             printf '\n[computer_%s]\nname=%s\n' "$peer" "$peer"
         done
-        printf '\n[internalConfig]\nscreens\\size=15\nscreens\\8\\name=abko-mac\n'
-        for index in "${!peers[@]}"; do
-            printf 'screens\\%s\\name=%s\n' "${slots[index]}" "${peers[index]}"
-        done
+        # External layouts use the computer sections above. A partial internal grid
+        # triggers Deskflow 1.27.0's legacy settings migration during startup.
     } > "$folder/Deskflow.conf"
 }
 
