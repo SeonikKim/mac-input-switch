@@ -21,10 +21,10 @@
 
 ## 밑면 Easy-Switch 버튼 진단
 
-1. 로지텍 마우스를 이 맥에 블루투스로 연결합니다. Homebrew에서 `brew install hidapitester`를 실행합니다. [hidapitester 사용법](https://github.com/todbot/hidapitester)
+1. 로지텍 마우스를 이 맥에 블루투스로 연결합니다. `--nonexclusive`를 지원하는 hidapitester 빌드를 사용합니다. `hidapitester --help`에 옵션이 없으면 공유 모드를 지원하는 소스 버전을 빌드합니다. [hidapitester 빌드와 사용법](https://github.com/todbot/hidapitester)
 2. MX Master 4는 프로젝트 폴더의 터미널에서 `/bin/bash Diagnose.command --mx-master-4`를 실행합니다. 다른 로지텍 마우스는 `/bin/bash Diagnose.command --list`로 `046D/` 뒤의 제품 ID를 확인한 다음, `/bin/bash Diagnose.command B034`처럼 실제 ID를 넣어 실행합니다.
 3. 마우스가 맥에 붙어 있는 상태에서 밑면 버튼을 한 번 누르고 직전 보고서가 출력되는지 봅니다. `Control+C`로 종료합니다. 종료 후 마우스를 맥 채널로 돌리면 반복할 수 있습니다.
 
-도구는 지정한 로지텍 제품의 블루투스 HID++ 인터페이스에서 보고서를 읽습니다. 보고서가 관측되면 버튼을 누를 때마다 같은 패턴이 반복되는지 확인해야 합니다. 출력이 없으면 해당 인터페이스에서 전환 신호를 관측하지 못했다는 뜻입니다. [Logitech HID++ 보고서 형식](https://github.com/Logitech/cpg-docs/blob/master/hidpp20/README.rst)
+도구는 지정한 로지텍 제품의 블루투스 인터페이스에서 들어오는 보고서를 실시간으로 읽습니다. `read 0 bytes`는 시간 초과이고, `02`로 시작하는 보고서는 MX Master 4의 포인터 움직임에서도 관측됩니다. 버튼을 눌렀을 때 목적지 채널 보고서가 나오는지는 일반 움직임과 구분해서 확인해야 합니다. 맥에서 접근 권한을 거부하면 시스템 설정 → 개인정보 보호 및 보안 → 입력 모니터링에서 실행에 사용하는 터미널을 허용한 뒤 터미널을 다시 엽니다. [Logitech HID++ 보고서 형식](https://github.com/Logitech/cpg-docs/blob/master/hidpp20/README.rst)
 
 호환성 제보에는 마우스와 키보드의 정확한 모델명, 컴퓨터별 OS, 채널 순서, 버튼 직전 보고서 관측 여부를 적어 주세요.

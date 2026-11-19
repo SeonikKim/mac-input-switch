@@ -23,7 +23,7 @@ fi
 
 product=$1
 if [[ $product == --mx-master-4 ]]; then
-    devices=$(hidapitester --vidpid 046D --usagePage 0xFF43 --usage 0x0202 --list-usages)
+    devices=$(hidapitester --vidpid 046D --usagePage 0xFF43 --usage 0x0202 --list-usages || true)
     standard=false business=false
     if grep -iq '^046D/B042[[:space:]]' <<< "$devices"; then standard=true; fi
     if grep -iq '^046D/B048[[:space:]]' <<< "$devices"; then business=true; fi
@@ -42,6 +42,12 @@ elif [[ ! $product =~ ^[[:xdigit:]]{4}$ || $product == 0000 ]]; then
     exit 2
 fi
 
+help=$(hidapitester --help 2>&1 || true)
+if [[ $help != *--nonexclusive* ]]; then
+    printf '%s\n' '공유 모드 옵션을 지원하는 hidapitester 빌드가 필요합니다. README의 설치 안내를 확인하세요.' >&2
+    exit 1
+fi
+
 printf '%s\n' '이 맥에 연결된 상태에서 밑면 Easy-Switch 버튼을 한 번 누르세요. 종료는 Control+C입니다.'
 exec hidapitester --vidpid "046D:$product" --usagePage 0xFF43 --usage 0x0202 \
-    --nonexclusive --open --length 20 --timeout 1000 --read-input-report-forever 0x11
+    --nonexclusive --open --length 20 --timeout 1000 --read-input-forever
