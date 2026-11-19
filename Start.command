@@ -2,44 +2,70 @@
 set -euo pipefail
 
 write_profile() {
-    local folder=$1 peer=$2 direction=$3
-    local opposite peer_slot config_path
-    local LC_ALL=C
-    local label='[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9])?'
-
-    if [[ ! $peer =~ ^$label(\.$label)*$ || ${#peer} -gt 255 ]] ||
-        [[ $(printf '%s' "$peer" | tr 'A-Z' 'a-z') == abko-mac ]]; then
-        printf '%s\n' '상대 컴퓨터 이름을 다시 확인하세요. 예시 desk-pc' >&2
+    local folder=$1
+    shift
+    if [[ $# -ne 2 && $# -ne 4 ]]; then
+        printf '%s\n' '상대 컴퓨터 이름과 방향을 한 쌍씩 입력하세요.' >&2
         return 1
     fi
 
-    case "$direction" in
-        left) opposite=right; peer_slot=7 ;;
-        right) opposite=left; peer_slot=9 ;;
-        up) opposite=down; peer_slot=3 ;;
-        down) opposite=up; peer_slot=13 ;;
-        *) printf '%s\n' '방향은 left, right, up, down 중 하나를 입력하세요.' >&2; return 1 ;;
-    esac
+    local peer direction opposite peer_slot config_path index
+    local -a peers directions opposites slots hotkeys
+    peers=() directions=() opposites=() slots=() hotkeys=(F12 F10)
+    local LC_ALL=C
+    local label='[a-zA-Z0-9]([a-zA-Z0-9_-]*[a-zA-Z0-9])?'
+
+    while (( $# )); do
+        peer=$1 direction=$2
+        shift 2
+        if [[ ! $peer =~ ^$label(\.$label)*$ || ${#peer} -gt 255 ]]; then
+            printf '%s\n' '상대 컴퓨터 이름을 다시 확인하세요. 예시 desk-pc' >&2
+            return 1
+        fi
+        local peer_lower first_lower
+        peer_lower=$(printf '%s' "$peer" | tr 'A-Z' 'a-z')
+        first_lower=$(printf '%s' "${peers[0]:-}" | tr 'A-Z' 'a-z')
+        if [[ $peer_lower == abko-mac || $peer_lower == "$first_lower" ]]; then
+            printf '%s\n' '컴퓨터 이름은 서로 달라야 합니다.' >&2
+            return 1
+        fi
+        if [[ $direction == "${directions[0]:-}" ]]; then
+            printf '%s\n' '두 상대 화면을 서로 다른 방향에 배치하세요.' >&2
+            return 1
+        fi
+
+        case "$direction" in
+            left) opposite=right; peer_slot=7 ;;
+            right) opposite=left; peer_slot=9 ;;
+            up) opposite=down; peer_slot=3 ;;
+            down) opposite=up; peer_slot=13 ;;
+            *) printf '%s\n' '방향은 left, right, up, down 중 하나를 입력하세요.' >&2; return 1 ;;
+        esac
+        peers+=("$peer") directions+=("$direction") opposites+=("$opposite") slots+=("$peer_slot")
+    done
 
     mkdir -p "$folder"
     config_path="$folder/ScreenLayout.conf"
-    cat > "$config_path" <<EOF
-section: links
-    abko-mac:
-        $direction = $peer
-    $peer:
-        $opposite = abko-mac
-end
-section: options
-    keystroke(control+alt+shift+F11) = switchToScreen(abko-mac)
-    keystroke(control+alt+shift+F12) = switchToScreen($peer)
-end
-EOF
+    {
+        printf 'section: links\n    abko-mac:\n'
+        for index in "${!peers[@]}"; do
+            printf '        %s = %s\n' "${directions[index]}" "${peers[index]}"
+        done
+        for index in "${!peers[@]}"; do
+            printf '    %s:\n        %s = abko-mac\n' "${peers[index]}" "${opposites[index]}"
+        done
+        printf 'end\nsection: options\n    keystroke(control+alt+shift+F11) = switchToScreen(abko-mac)\n'
+        for index in "${!peers[@]}"; do
+            printf '    keystroke(control+alt+shift+%s) = switchToScreen(%s)\n' "${hotkeys[index]}" "${peers[index]}"
+        done
+        printf 'end\n'
+    } > "$config_path"
 
     # Escape a quoted Qt INI string so paths with spaces and punctuation work.
     config_path=${config_path//\\/\\\\}
     config_path=${config_path//\"/\\\"}
-    cat > "$folder/Deskflow.conf" <<EOF
+    {
+        cat <<EOF
 [core]
 computerName=abko-mac
 coreMode=Server
@@ -56,15 +82,15 @@ tlsEnabled=true
 
 [computer_abko-mac]
 name=abko-mac
-
-[computer_$peer]
-name=$peer
-
-[internalConfig]
-screens\\size=15
-screens\\8\\name=abko-mac
-screens\\$peer_slot\\name=$peer
 EOF
+        for peer in "${peers[@]}"; do
+            printf '\n[computer_%s]\nname=%s\n' "$peer" "$peer"
+        done
+        printf '\n[internalConfig]\nscreens\\size=15\nscreens\\8\\name=abko-mac\n'
+        for index in "${!peers[@]}"; do
+            printf 'screens\\%s\\name=%s\n' "${slots[index]}" "${peers[index]}"
+        done
+    } > "$folder/Deskflow.conf"
 }
 
 main() {
@@ -97,12 +123,18 @@ main() {
     fi
 
     local profile="$HOME/Library/Application Support/ABKO Input Switch"
-    local settings="$profile/Deskflow" peer direction
+    local settings="$profile/Deskflow" peer direction second_peer second_direction
     if [[ ${1:-} == --setup || ! -f $settings/Deskflow.conf || ! -f $settings/ScreenLayout.conf ]]; then
         printf '%s\n' '상대 컴퓨터에서 Deskflow를 열고 This computer’s name을 확인하세요.'
-        read -r -p '상대 컴퓨터 이름 > ' peer
-        read -r -p '상대 화면 위치 left/right/up/down [right] > ' direction
-        write_profile "$settings" "$peer" "${direction:-right}"
+        read -r -p '첫 번째 상대 컴퓨터 이름 > ' peer
+        read -r -p '첫 번째 화면 위치 left/right/up/down [right] > ' direction
+        read -r -p '두 번째 상대 컴퓨터 이름 [없으면 Enter] > ' second_peer
+        local -a layout=("$peer" "${direction:-right}")
+        if [[ -n $second_peer ]]; then
+            read -r -p '두 번째 화면 위치 left/right/up/down > ' second_direction
+            layout+=("$second_peer" "$second_direction")
+        fi
+        write_profile "$settings" "${layout[@]}"
     fi
 
     mkdir -p "$profile/State"
