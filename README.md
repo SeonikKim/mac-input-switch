@@ -2,7 +2,7 @@
 
 두 기기가 연결된 맥에서 커서를 화면 가장자리로 넘기면 상대 컴퓨터로 마우스와 키보드 입력이 함께 넘어갑니다. 반대쪽 가장자리로 움직이면 맥으로 돌아옵니다.
 
-화면 가장자리 전환은 Deskflow로 구현했습니다. Logitech Flow의 Keyboard Link에는 호환 로지텍 키보드가 필요합니다. 밑면 Easy-Switch 버튼을 통한 앱코 입력 전환은 개발 중이며, 아래 진단으로 마우스의 블루투스 신호를 확인할 수 있습니다. [Logitech Flow 안내](https://support.logi.com/hc/en-001/articles/1500005634742-What-is-Logitech-Flow-and-how-do-I-set-it-up-and-troubleshoot-it)
+Deskflow를 사용하거나, 아래의 **Logitech Flow + 앱코 키보드 중계**를 사용할 수 있습니다. Logitech Flow의 자체 Keyboard Link에는 호환 로지텍 키보드가 필요합니다. [Logitech Flow 안내](https://support.logi.com/hc/en-001/articles/1500005634742-What-is-Logitech-Flow-and-how-do-I-set-it-up-and-troubleshoot-it)
 
 ## 처음 연결하기
 
@@ -28,3 +28,19 @@
 도구는 지정한 로지텍 제품의 블루투스 인터페이스에서 들어오는 보고서를 실시간으로 읽습니다. `read 0 bytes`는 시간 초과이고, `02`로 시작하는 보고서는 MX Master 4의 포인터 움직임에서도 관측됩니다. 버튼을 눌렀을 때 목적지 채널 보고서가 나오는지는 일반 움직임과 구분해서 확인해야 합니다. 맥에서 접근 권한을 거부하면 시스템 설정 → 개인정보 보호 및 보안 → 입력 모니터링에서 실행에 사용하는 터미널을 허용한 뒤 터미널을 다시 엽니다. [Logitech HID++ 보고서 형식](https://github.com/Logitech/cpg-docs/blob/master/hidpp20/README.rst)
 
 호환성 제보에는 마우스와 키보드의 정확한 모델명, 컴퓨터별 OS, 채널 순서, 버튼 직전 보고서 관측 여부를 적어 주세요.
+
+## Logitech Flow + 앱코 키보드 중계 (실험 기능)
+
+Logitech Flow는 마우스와 화면 가장자리 전환을 담당합니다. 중계는 MX Master 4가 블루투스로 실제 연결된 윈도우를 확인한 뒤, 맥의 `ACH105 BT-3` 키보드 입력만 그 컴퓨터로 보냅니다. 마우스가 맥으로 돌아오거나 윈도우 연결이 끊기면 키보드가 맥으로 돌아옵니다. 동일한 윈도우 PC에서 Deskflow 클라이언트를 잠시 종료해 마우스 전달이 겹치지 않도록 합니다.
+
+1. 맥에서 Python 3.8 이상과 Apple Command Line Tools를 준비합니다. 소스 파일을 `~/Applications/MacInputSwitch`에 놓고 터미널에 입력 모니터링 권한을 줍니다. 윈도우에서 맥으로 기존 SSH 키로 접속할 수 있어야 합니다. 맥이 호스트 키로 이미 등록되어 있어야 합니다.
+2. 맥에서 터미널 창 하나를 열고 `/bin/bash ~/Applications/MacInputSwitch/Start-KeyboardRelay.command`를 실행합니다. 관리자 암호는 해당 터미널의 `sudo` 프롬프트에 입력합니다. 관리자 권한을 쓰는 도우미는 지정된 앱코 키보드만 엽니다.
+3. 윈도우에서는 `Connect-KeyboardRelay.ps1`과 `AbkoKeyboard.cs`를 같은 폴더에 두고 Windows PowerShell 5.1에서 다음처럼 실행합니다. 두 번째 윈도우를 쓰려면 그 컴퓨터에서 `-Slot second`로 별도로 실행합니다.
+
+   ```powershell
+   .\Connect-KeyboardRelay.ps1 -Mac user@mac-host -IdentityFile "$env:USERPROFILE\.ssh\your_key" -Slot first
+   ```
+
+4. 앱코는 맥의 채널 3에 둡니다. MX Master 4를 마우스 밑면 버튼이나 Logitech Flow로 윈도우에 연결하면 앱코를 윈도우에서 사용할 수 있습니다. 맥 터미널에서 `Control+C`로 중계를 종료합니다.
+
+이 기능은 앱코 ACH105 BT-3, MX Master 4, 맥 미니와 윈도우 데스크톱 조합을 대상으로 합니다. 일반 키와 키 조합을 전달하며 키 입력을 로그에 쓰지 않습니다. 윈도우 로그인 화면과 더 높은 권한으로 실행된 프로그램에는 일반 사용자 중계가 입력을 전달할 수 없습니다. [Windows 입력 전달 제한](https://learn.microsoft.com/windows/win32/api/winuser/nf-winuser-sendinput)
