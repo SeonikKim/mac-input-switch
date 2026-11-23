@@ -21,7 +21,10 @@ param(
     [string] $Language,
 
     [Parameter(Mandatory = $true, ParameterSetName = 'Language')]
-    [switch] $SetLanguage
+    [switch] $SetLanguage,
+
+    [Parameter(ParameterSetName = 'Relay')]
+    [switch] $InstallStartup
 )
 
 $ErrorActionPreference = 'Stop'
@@ -55,6 +58,40 @@ if ($saveLanguage) {
 }
 if ($SetLanguage) {
     if ($Language -eq 'ko') { Write-Output '한국어로 저장했습니다.' } else { Write-Output 'English saved.' }
+    return
+}
+
+$identity = (Resolve-Path -LiteralPath $IdentityFile).ProviderPath
+if ($InstallStartup) {
+    $taskName = if ($Slot -eq 'first') { 'MacInputSwitch Desktop Relay' } else { 'MacInputSwitch Second Relay' }
+    $user = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+    $relayArguments = @{
+        Mac = $Mac
+        IdentityFile = $identity
+        Slot = $Slot
+        MouseName = $MouseName
+    }
+    if ($LocalMouseName) { $relayArguments.LocalMouseName = $LocalMouseName }
+
+    $script = "& '" + $PSCommandPath.Replace("'", "''") + "'"
+    foreach ($entry in $relayArguments.GetEnumerator()) {
+        $script += " -" + $entry.Key + " '" + $entry.Value.Replace("'", "''") + "'"
+    }
+    $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($script))
+    $powershell = Join-Path $env:WINDIR 'System32/WindowsPowerShell/v1.0/powershell.exe'
+    $arguments = "-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -EncodedCommand $encoded"
+    $action = New-ScheduledTaskAction -Execute $powershell -Argument $arguments -WorkingDirectory $PSScriptRoot
+    $trigger = New-ScheduledTaskTrigger -AtLogOn -User $user
+    $principal = New-ScheduledTaskPrincipal -UserId $user -LogonType Interactive -RunLevel Limited
+    $settings = New-ScheduledTaskSettingsSet -MultipleInstances IgnoreNew -ExecutionTimeLimit ([TimeSpan]::Zero) `
+        -RestartCount 10 -RestartInterval (New-TimeSpan -Minutes 1) -AllowStartIfOnBatteries -DontStopIfGoingOnBatteries
+    $null = Register-ScheduledTask -TaskName $taskName -Action $action -Trigger $trigger -Principal $principal `
+        -Settings $settings -Force
+    if ($Language -eq 'ko') {
+        Write-Output "$taskName 작업을 등록했습니다. 다음 Windows 로그인부터 중계를 실행합니다."
+    } else {
+        Write-Output "Registered the $taskName task. The relay will start at the next Windows sign-in."
+    }
     return
 }
 
@@ -96,7 +133,6 @@ function Get-MatchingMouseCount([string] $Filter) {
     return @($task.Result | Where-Object { (Get-MouseModel $_.Name) -eq $localModel }).Count
 }
 
-$identity = (Resolve-Path -LiteralPath $IdentityFile).ProviderPath
 $start = New-Object System.Diagnostics.ProcessStartInfo
 $start.FileName = Join-Path $env:WINDIR 'System32/OpenSSH/ssh.exe'
 $start.Arguments = ('-T -i "{0}" -o IdentitiesOnly=yes -o BatchMode=yes -o StrictHostKeyChecking=yes ' +

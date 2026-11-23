@@ -36,6 +36,18 @@ Logitech Flow로 커서를 화면 끝에 밀거나 마우스 밑면의 **Easy-Sw
 
 중계 상태 로그는 같은 폴더의 `KeyboardRelay.log`에서 볼 수 있습니다. 터미널에서 직접 문제를 확인할 때는 `--foreground`로 시작하고 Ctrl+C로 종료합니다. 이전 버전을 터미널에서 실행 중이면 Ctrl+C로 먼저 종료한 뒤 새 버전을 실행하세요.
 
+### 윈도우 로그인 시 자동 시작
+
+윈도우 중계 파일을 계속 쓸 폴더에 둔 뒤, 평소 실행 명령에 `-InstallStartup`을 추가해 한 번 실행합니다. 현재 윈도우 계정의 작업 스케줄러에 등록되며 다음 로그인부터 창 없이 실행됩니다. 기존 설치에서 맥 주소, SSH 키 경로, 마우스 모델을 바꿨다면 새 옵션으로 다시 등록하세요.
+
+```powershell
+.\Connect-KeyboardRelay.ps1 -Mac user@mac-host -IdentityFile "$env:USERPROFILE\.ssh\your_key" -Slot first -InstallStartup
+```
+
+지금 시작하려면 수동으로 켜 둔 윈도우 중계를 먼저 종료하고 작업 스케줄러에서 **MacInputSwitch Desktop Relay**를 실행하세요. `-Slot second`의 작업 이름은 **MacInputSwitch Second Relay**입니다. 자동 시작을 끄려면 작업 스케줄러에서 해당 작업을 사용 안 함으로 바꾸세요.
+
+맥을 재시동한 뒤에는 로그인하고 `Start-KeyboardRelay.command`를 다시 엽니다. 맥 자동 시작은 터미널에서 부여한 HID 권한을 자동 실행 서비스가 이어받지 못해 현재 지원하지 않습니다. 중계를 켜 둔 동안 키보드가 잠시 끊기면 자동으로 다시 연결을 시도하며, 상태 보고가 끊긴 윈도우 연결도 정리합니다.
+
 ## 다른 장치 연결
 
 - 키보드의 `BT-1`, `BT-2`, `BT-3` 중 어느 채널이든 맥에 페어링할 수 있습니다. 맥에 연결된 블루투스 키보드가 한 대면 자동 선택합니다. 여러 대 중 ACH105가 한 대면 기존 설치와 호환되도록 그 장치를 우선 선택합니다.
