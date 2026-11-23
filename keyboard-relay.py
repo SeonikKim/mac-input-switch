@@ -19,6 +19,8 @@ BASE = Path.home() / "Applications" / "MacInputSwitch"
 SOCKET = BASE / "keyboard.sock"
 HID_HELPER = BASE / "bin" / "abko-access"
 LEASE = 2.5
+PEER_TIMEOUT = 6.0
+KEYBOARD_RETRY = 1.0
 DEFAULT_MOUSE = "mx master 4"
 
 
@@ -203,6 +205,7 @@ def run(listener, select, keyboard, mouse, grabber, ready_fd):
     renew_at = 0.0
     mouse_local = True
     partial_keys = b""
+    retry_keyboard_at = None
 
     def remove(peer):
         select.unregister(peer)
@@ -216,7 +219,8 @@ def run(listener, select, keyboard, mouse, grabber, ready_fd):
             remove(peer)
 
     def change_target(target):
-        nonlocal active, active_ready
+        nonlocal active, active_ready, retry_keyboard_at
+        retry_keyboard_at = None
         if active is not None:
             grabber.stdin.write(b"0")
             if active in peers:
@@ -241,7 +245,7 @@ def run(listener, select, keyboard, mouse, grabber, ready_fd):
                 if event.data == "listener":
                     peer, _ = listener.accept()
                     peer.setblocking(False)
-                    peers[peer] = [None, False, 0.0, b""]
+                    peers[peer] = [None, False, time.monotonic(), b""]
                     select.register(peer, selectors.EVENT_READ, "peer")
                 elif event.data == "keyboard":
                     data = os.read(grabber.stdout.fileno(), 4096)
@@ -252,11 +256,13 @@ def run(listener, select, keyboard, mouse, grabber, ready_fd):
                     for line in parts:
                         if line == b"READY" and active in peers:
                             active_ready = True
+                            retry_keyboard_at = None
                             slot = peers[active][0]
                             say(f"Keyboard routed to {slot}.", f"키보드 입력을 {slot} 윈도우로 전환했습니다.")
-                        elif line == b"FAILED":
-                            say("Could not open the Bluetooth keyboard. Relay stopped.", "블루투스 키보드를 열 수 없어 중계를 종료했습니다.")
-                            return
+                        elif line == b"FAILED" and active in peers:
+                            if retry_keyboard_at is None:
+                                say("Waiting for the Bluetooth keyboard.", "블루투스 키보드 연결을 기다리는 중입니다.")
+                            retry_keyboard_at = time.monotonic() + KEYBOARD_RETRY
                         elif active_ready and active in peers and line.startswith(b"KEY "):
                             send(active, line + b"\n")
                 else:
@@ -288,6 +294,7 @@ def run(listener, select, keyboard, mouse, grabber, ready_fd):
                                 remove(peer)
                                 break
                             state[0] = name
+                            state[2] = time.monotonic()
                         elif state[0] and line in (b"PRESENT 0", b"PRESENT 1"):
                             state[1] = line == b"PRESENT 1"
                             state[2] = time.monotonic()
@@ -296,6 +303,9 @@ def run(listener, select, keyboard, mouse, grabber, ready_fd):
                             break
 
             now = time.monotonic()
+            for peer, state in list(peers.items()):
+                if now - state[2] >= PEER_TIMEOUT:
+                    remove(peer)
             if now >= next_poll:
                 mouse_local = mouse_is_local(mouse)
                 next_poll = now + 0.35
@@ -305,6 +315,9 @@ def run(listener, select, keyboard, mouse, grabber, ready_fd):
                 if target is None:
                     say("Keyboard released to the Mac.", "키보드 입력을 맥으로 반환했습니다.")
                 change_target(target)
+            if active is not None and retry_keyboard_at is not None and now >= retry_keyboard_at:
+                grabber.stdin.write(b"1")
+                retry_keyboard_at = now + KEYBOARD_RETRY
             if active is not None and now >= renew_at:
                 grabber.stdin.write(b"2")
                 renew_at = now + 0.5

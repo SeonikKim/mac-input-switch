@@ -33,6 +33,18 @@ Open the same launcher again to check whether the relay is running. Run the laun
 
 The launcher writes status messages to `KeyboardRelay.log` in the project folder. Use `--foreground` to troubleshoot in the terminal and stop that session with Ctrl+C. When upgrading from a relay already running in a terminal, stop it with Ctrl+C before starting the new version.
 
+### Start the Windows relay at sign-in
+
+Keep the Windows relay files in a permanent folder and run your usual command once with `-InstallStartup`. The relay starts in the background the next time you sign in to this Windows account. Register it again if the Mac address, SSH key path, or mouse model changes.
+
+```powershell
+.\Connect-KeyboardRelay.ps1 -Mac user@mac-host -IdentityFile "$env:USERPROFILE\.ssh\your_key" -Slot first -InstallStartup
+```
+
+To start it now, stop any manually launched Windows relay and run **MacInputSwitch Desktop Relay** in Task Scheduler. The task for `-Slot second` is **MacInputSwitch Second Relay**. Disable the task in Task Scheduler to turn off automatic startup.
+
+After a Mac restart, sign in and open `Start-KeyboardRelay.command` again. The Mac startup service cannot reuse Terminal's HID permission, so automatic startup on macOS is still pending. While the Mac relay is running, it retries when the keyboard is unavailable and clears Windows peers that stop reporting their status.
+
 ## Device selection
 
 - **Keyboard.** The relay selects a single connected Bluetooth HID keyboard on the Mac. If several are connected, it gives priority to one ACH105 for compatibility with existing setups. To select an AULA keyboard or another model, run `Start-KeyboardRelay.command --list-keyboards`, then start with `--keyboard "device name"`. If two indistinguishable keyboards are connected, disconnect one before starting.
